@@ -1,5 +1,26 @@
 # Интеллектуальный анализ данных и ML: Настройка окружения
 
+## 0. Установка Git
+
+Для работы с репозиторием вам понадобится установленный Git.
+
+### Ubuntu/Debian
+
+```
+sudo apt-get update
+sudo apt-get install git
+```
+
+### macOS
+
+```
+brew install git
+```
+
+### Windows
+
+Скачайте и установите Git с официального сайта: [https://git-scm.com/](https://git-scm.com/)
+
 ## 1. Клонирование репозитория
 
 ```bash
