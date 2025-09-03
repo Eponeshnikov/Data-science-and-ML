@@ -43,6 +43,7 @@ cd Data-science-and-ML
    - Python Debugger (Microsoft)
    - Python Environments (Microsoft)
    - Pylance (Microsoft)
+   - Jupyter (Microsoft)
 
 ### PyCharm
 Скачайте и установите PyCharm с официального сайта JetBrains: [https://www.jetbrains.com/pycharm/](https://www.jetbrains.com/pycharm/) 
