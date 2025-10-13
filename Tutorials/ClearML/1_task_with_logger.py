@@ -1,22 +1,41 @@
 # 1_simple_task_with_logger.py
 
 # Импортируем библиотеки для визуализации
+import os  # библиотека для работы с операционными системами
+from collections import Counter #  библиотека для подсчета
+
+import joblib  # библиотека для сохранения и загрузки моделей
 import matplotlib.pyplot as plt  # библиотека для создания статических графиков
-import pandas as pd             # библиотека для работы с табличными данными
+import pandas as pd  # библиотека для работы с табличными данными
 import plotly.graph_objects as go  # библиотека для интерактивной визуализации
-import joblib                   # библиотека для сохранения и загрузки моделей
-import os                       # библиотека для работы с операционными системами
 
 # Импортируем основные компоненты ClearML
-from clearml import Task        # основной класс для создания экспериментов в ClearML
+from clearml import Task  # основной класс для создания экспериментов в ClearML
+from sklearn.decomposition import PCA  # анализ главных компонент
+from sklearn.linear_model import (
+    LogisticRegression,  # логистическая регрессия для бинарной классификации
+)
+from sklearn.metrics import (  # метрики для оценки качества модели
+    accuracy_score,
+    auc,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_curve,
+)
+from sklearn.model_selection import (
+    train_test_split,  # функция для разделения данных
+)
+from sklearn.pipeline import (
+    Pipeline,  # конвейер для объединения трансформеров и модели
+)
 
 # Импортируем компоненты scikit-learn для машинного обучения
-from sklearn.preprocessing import PolynomialFeatures  # класс для создания полиномиальных признаков
-from sklearn.linear_model import LogisticRegression   # логистическая регрессия для бинарной классификации
-from sklearn.pipeline import Pipeline                 # конвейер для объединения трансформеров и модели
-from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc # метрики для оценки качества модели
-from sklearn.model_selection import train_test_split          # функция для разделения данных
-from sklearn.decomposition import PCA                 # анализ главных компонент
+from sklearn.preprocessing import (
+    PolynomialFeatures,  # класс для создания полиномиальных признаков
+    StandardScaler,
+)
 
 # Инициализируем задачу в ClearML
 # - project_name: имя проекта в ClearML, в котором будет зарегистрирован эксперимент
@@ -32,9 +51,32 @@ task.add_tags(["polynomial-regression", "tutorial"])
 # Получаем логгер для отправки метрик, графиков, текста и других артефактов в ClearML
 logger = task.get_logger()
 
+#####################
+######## EDA ########
+#####################
+
 # Загружаем датасет
 print("Загрузка датасета из файла...")  # выводим сообщение о начале загрузки данных
 df = pd.read_csv("Tutorials/ClearML/data/synthetic_dataset.csv")  # загружаем табличные данные из CSV файла
+
+# Выводим общую информацию о датасете
+print("EDA: Общая информация о датасете")
+print(df.info())
+# Логируем основную информацию о датасете
+dataset_info = {
+    "Dataset shape": str(df.shape),
+    "Number of features": str(df.shape[1]-1),  # исключаем целевую переменную
+    "Number of samples": str(df.shape[0]),
+    "Target variable": "target"
+}
+info_df = pd.DataFrame(list(dataset_info.items()), columns=["Property", "Value"])
+logger.report_table(title="Dataset Statistics", series="Basic Info", iteration=0, table_plot=info_df)
+
+# Выводим статистики по числовым признакам
+print("EDA: Статистики по числовым признакам")
+stats_df = df.describe()
+print(stats_df)
+logger.report_table(title="Dataset Statistics", series="Numerical Features", iteration=0, table_plot=stats_df)
 
 # Разделяем признаки (X) и целевую переменную (y)
 # Предположим, что последняя колонка - это целевая переменная (y), а остальные - признаки (X)
@@ -71,6 +113,26 @@ logger.report_matplotlib_figure(
     figure=plt,                    # сам объект matplotlib фигуры
 )
 
+# Создаем и логируем корреляционную матрицу
+print("Создаем и логируем корреляционную матрицу")
+correlation_matrix = df.corr()
+fig, ax = plt.subplots(figsize=(10, 8))
+im = ax.imshow(correlation_matrix.values, cmap='coolwarm', aspect='auto')
+plt.colorbar(im)
+ax.set_xticks(range(len(correlation_matrix.columns)))
+ax.set_yticks(range(len(correlation_matrix.columns)))
+ax.set_xticklabels(correlation_matrix.columns, rotation=45, ha='right')
+ax.set_yticklabels(correlation_matrix.columns)
+plt.title("Correlation Matrix")
+plt.tight_layout()
+
+# Логируем корреляционную матрицу
+logger.report_matplotlib_figure(
+    title="Dataset Visualization",  # заголовок графика в ClearML
+    series="Correlation Matrix",     # серия данных
+    figure=plt,                    # сам объект matplotlib фигуры
+)
+
 # Определяем гиперпараметры для модели
 # Эти параметры будут использоваться в процессе обучения и оптимизации
 hyperparams = {
@@ -86,8 +148,45 @@ hyperparams = {
 # Подключаем гиперпараметры к задаче для автоматического логирования
 task.connect(hyperparams)
 
+###############################
+##### Preprocessing stage #####
+###############################
+
+# Логируем информацию о preprocessing
+print("Препроцессинг данных...")
+
+# Масштабирование признаков
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+
+# Проверяем баланс классов
+train_class_counts = Counter(y_train)
+test_class_counts = Counter(y_test)
+
+# Визуализируем распределение классов
+fig, ax = plt.subplots()
+ax.bar(list(train_class_counts.keys()), list(train_class_counts.values()))
+ax.set_title("Train Class Distribution")
+ax.set_xlabel("Class")
+ax.set_ylabel("Count")
+logger.report_matplotlib_figure(title="Preprocessing Visualization", series="Train Class Distribution", figure=plt)
+
+fig, ax = plt.subplots()
+ax.bar(list(test_class_counts.keys()), list(test_class_counts.values()))
+ax.set_title("Test Class Distribution")
+ax.set_xlabel("Class")
+ax.set_ylabel("Count")
+logger.report_matplotlib_figure(title="Preprocessing Visualization", series="Test Class Distribution", figure=plt)
+
+#######################################
+##### Hyperparameter tuning stage #####
+#######################################
+
 # Обучаем простую модель
-print("Начинаем обучение модели...")
+print("Начинаем подбор гиперпараметров...")
 
 # Обучение с логированием метрик на каждой эпохе (итерации)
 # Используем гиперпараметры, определенные ранее
@@ -108,15 +207,23 @@ for degree in poly_degree_range:
         ))
     ])
     # Обучаем модель на обучающей выборке
-    model.fit(X_train, y_train)
+    model.fit(X_train_scaled, y_train)
 
     # Получаем предсказания модели на обучающей и тестовой выборках
-    y_train_pred = model.predict(X_train)  # предсказания на обучающей выборке
-    y_test_pred = model.predict(X_test)    # предсказания на тестовой выборке
+    y_train_pred = model.predict(X_train_scaled)  # предсказания на обучающей выборке
+    y_test_pred = model.predict(X_test_scaled)    # предсказания на тестовой выборке
 
     # Вычисляем точность модели на обучающей и тестовой выборках
     train_acc = accuracy_score(y_train, y_train_pred)  # точность на обучающей выборке
     val_acc = accuracy_score(y_test, y_test_pred)      # точность на тестовой выборке
+
+    # Вычисляем precision, recall и f1 для тестовой и тренировочной выборки
+    val_precision = float(precision_score(y_test, y_test_pred))
+    val_recall = float(recall_score(y_test, y_test_pred))
+    val_f1 = float(f1_score(y_test, y_test_pred))
+    train_precision = float(precision_score(y_train, y_train_pred))
+    train_recall = float(recall_score(y_train, y_train_pred))
+    train_f1 = float(f1_score(y_train, y_train_pred))
 
     # Добавляем полученные точности в соответствующие списки
     train_accuracies.append(train_acc)  # добавляем точность на обучающей выборке
@@ -134,6 +241,49 @@ for degree in poly_degree_range:
         title="Accuracy",      # заголовок графика
         series="validation",   # серия данных (валидационная/тестовая выборка)
         value=float(val_acc),  # значение точности
+        iteration=degree,      # итерация (используется как ось X на графике)
+    )
+
+    # Логируем скалярные значения precision, recall и f1 для визуализации в ClearML
+    logger.report_scalar(
+        title="Precision",        # заголовок графика
+        series="train",
+        value=train_precision,  # значение точности
+        iteration=degree,
+    )
+    
+    logger.report_scalar(
+        title="Precision",     # заголовок графика
+        series="validation",   # серия данных (валидационная/тестовая выборка)
+        value=val_precision,       # значение precision
+        iteration=degree,      # итерация (используется как ось X на графике)
+    )
+    
+    logger.report_scalar(
+        title="Recall",        # заголовок графика
+        series="train",   # серия данных (валидационная/тесточная выборка)
+        value=train_recall,      # значение recall
+        iteration=degree,      # итерация (используется как ось X на графике)
+    )
+
+    logger.report_scalar(
+        title="Recall",        # заголовок графика
+        series="validation",   # серия данных (валидационная/тестовая выборка)
+        value=val_recall,          # значение recall
+        iteration=degree,      # итерация (используется как ось X на графике)
+    )
+    
+    logger.report_scalar(
+        title="F1 Score",     # заголовок графика
+        series="train",   # серия данных (валидационная/тесточная выборка)
+        value=train_f1,        # значение precision
+        iteration=degree,      # итерация (используется как ось X на графике)
+    )
+
+    logger.report_scalar(
+        title="F1 Score",      # заголовок графика
+        series="validation",   # серия данных (валидационная/тестовая выборка)
+        value=val_f1,              # значение f1
         iteration=degree,      # итерация (используется как ось X на графике)
     )
 
@@ -158,12 +308,10 @@ best_hyperparams = {
     "max_iter": hyperparams["max_iter"],
 }
 
-logger.report_text(f"Лучшие гиперпараметры: {best_hyperparams}")
+# Логируем лучшие гиперпараметры в виде таблицы
+best_hyperparams_df = pd.DataFrame(list(best_hyperparams.items()), columns=["Hyperparameter", "Value"])
+logger.report_table(title="Best Hyperparameters", series="Tuned Values", iteration=0, table_plot=best_hyperparams_df)
 
-# Логируем текстовое сообщение (по сути тоже что и print, но с возможностью не выводить в консоль или добавить уровень логирования)
-logger.report_text(
-    f"Обучение завершено. Финальная точность: {final_accuracy:.4f}"
-)
 
 # Логируем таблицу с результатами
 # Создаем DataFrame с результатами для удобного отображения
@@ -182,9 +330,14 @@ logger.report_table(
     table_plot=results_df,       # сам DataFrame с результатами
 )
 
-# Создаем и логируем Plotly график ROC-кривой для финальной модели
+######################################
+##### Final model training stage #####
+######################################
+
+print("Обучение финальной модели с лучшими гиперпараметрами...")
+logger.report_text("Training final model with best hyperparameters...")
+
 # Обучаем финальную модель с лучшими гиперпараметрами
-print("Обучение финальной модели...")
 final_model = Pipeline([
     ('poly', PolynomialFeatures(degree=best_poly_degree)),  # преобразование признаков в полиномиальные
     ('logistic', LogisticRegression(                        # логистическая регрессия для бинарной классификации
@@ -193,11 +346,17 @@ final_model = Pipeline([
         max_iter=hyperparams["max_iter"],                  # максимальное количество итераций для сходимости
     ))
 ])
-final_model.fit(X_train, y_train)  # обучаем модель с лучшими гиперпараметрами
+final_model.fit(X_train_scaled, y_train)  # обучаем модель с лучшими гиперпараметрами
 
 # Получаем вероятности предсказаний для построения ROC-кривой
-y_pred_proba = final_model.predict_proba(X_test)[:, 1]  # вероятности для положительного класса
-y_pred = final_model.predict(X_test) # получаем предсказания на тестовой выборке
+y_pred_proba = final_model.predict_proba(X_test_scaled)[:, 1]  # вероятности для положительного класса
+y_pred = final_model.predict(X_test_scaled) # получаем предсказания на тестовой выборке
+
+##################################
+##### Model evaluation stage #####
+##################################
+
+print("Оценка производительности модели...")
 
 # Вычисляем значения для ROC-кривой
 print("Вычисляем ROC curve и строим через plotly")
@@ -211,7 +370,7 @@ fig.add_trace(
         x=fpr,                   # ось X: ложноположительные rates
         y=tpr,                   # ось Y: истинноположительные rates
         mode='lines',            # режим отображения: линии
-        name=f'ROC Curve (AUC = {roc_auc:.4f})',  # название серии данных с AUC
+        name=f'ROC Curve (AUC = {roc_auc:.4f})', # название серии данных с AUC
     )
 )
 # Добавляем диагональную линию (random classifier)
@@ -252,10 +411,23 @@ logger.report_confusion_matrix(
     yaxis="Actual",           # подпись оси Y
 )
 
+# Вычисляем и логируем дополнительные метрики
+val_precision = float(precision_score(y_test, y_pred))
+val_recall = float(recall_score(y_test, y_pred))
+val_f1 = float(f1_score(y_test, y_pred))
+
+logger.report_single_value(name="precision", value=val_precision)
+logger.report_single_value(name="recall", value=val_recall)
+logger.report_single_value(name="f1_score", value=val_f1)
+
+print(f"Precision: {val_precision:.4f}")
+print(f"Recall: {val_recall:.4f}")
+print(f"F1-score: {val_f1:.4f}")
+
 # Логируем примеры предсказаний для отладки
 print("Логгируем часть предсказаний")
 predictions_df = pd.DataFrame(
-    {"true_label": y_test, "predicted_label": y_pred}  # создаем DataFrame с истинными и предсказанными метками
+    {"true_label": y_test, "predicted_label": y_pred, "prediction_proba": y_pred_proba}  # создаем DataFrame с истинными и предсказанными метками
 )
 logger.report_table(
     title="Sample Predictions",      # заголовок таблицы в ClearML
@@ -264,7 +436,11 @@ logger.report_table(
     table_plot=predictions_df.head(20),  # первые 20 строк таблицы с предсказаниями
 )
 
-# Сохраняем и регистрируем модель
+##############################
+##### Model saving stage #####
+##############################
+
+print("Сохранение модели...")
 
 # Сохраняем финальную модель в файл
 model_path = "models/polynomial.pkl"
