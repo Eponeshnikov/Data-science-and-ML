@@ -1,4 +1,4 @@
-# 1_task_with_logger.py
+# 2_remote_task.py
 
 # Импортируем библиотеки для визуализации
 import os  # библиотека для работы с операционными системами
@@ -44,13 +44,13 @@ from sklearn.preprocessing import (
 # - output_uri: позволяет сохранять результаты эксперимента в удалённом хранилище
 task: Task = Task.init(
     project_name="Tutorial",                    # имя проекта в ClearML
-    task_name="Simple Task with Polynomial Regression",  # имя эксперимента
+    task_name="Remote Task with Polynomial Regression",  # имя эксперимента
     output_uri=True,                           # включаем сохранение результатов в удалённое хранилище
 )
 # Добавляем теги к задаче
 task.add_tags(["polynomial-regression", "tutorial", "remote"])
 
-#  Запускаем задачу на удалённом сервере (агенте)
+# Запускаем задачу на удалённом сервере (агенте)
 task.execute_remotely(queue_name="default")
 # Получаем логгер для отправки метрик, графиков, текста и других артефактов в ClearML
 logger = task.get_logger()
