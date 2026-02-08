@@ -16,7 +16,7 @@ from clearml import Task  # основной класс для создания 
 # Исключаем Windows-специфичные пакеты из автоматически определяемых зависимостей,
 # чтобы задача могла выполняться на Linux-агентах (например, Google Colab)
 # Важно: вызывать до Task.init()
-if sys.platform != "win32":
+if sys.platform == "win32":
     Task.ignore_requirements("pywin32")
 
 from sklearn.datasets import make_classification

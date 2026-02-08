@@ -14,10 +14,18 @@ import os
 from collections import Counter
 
 import joblib
+import sys
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.graph_objects as go
 from clearml import Dataset, Task
+
+# Исключаем Windows-специфичные пакеты из автоматически определяемых зависимостей,
+# чтобы задача могла выполняться на Linux-агентах (например, Google Colab)
+# Важно: вызывать до Task.init()
+if sys.platform == "win32":
+    Task.ignore_requirements("pywin32")
+
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -70,12 +78,12 @@ print("=" * 60)
 try:
     if USE_SPECIFIC_VERSION and "DATASET_ID" in globals():
         # Способ 1: Загрузка конкретной версии по ID
-        print(f"\n📥 Загрузка датасета по ID: {DATASET_ID}")
+        print(f"\n Загрузка датасета по ID: {DATASET_ID}")
         dataset = Dataset.get(dataset_id=DATASET_ID)
     else:
         # Способ 2: Загрузка последней версии по имени и проекту (РЕКОМЕНДУЕТСЯ)
         print(
-            f"\n📥 Загрузка датасета по имени: {DATASET_PROJECT}/{DATASET_NAME}"
+            f"\n Загрузка датасета по имени: {DATASET_PROJECT}/{DATASET_NAME}"
         )
         print("   (автоматически используется последняя версия)")
         dataset = Dataset.get(
@@ -83,13 +91,13 @@ try:
             dataset_name=DATASET_NAME,
         )
 
-    print(f"✅ Датасет загружен: {dataset.name}")
+    print(f" Датасет загружен: {dataset.name}")
     print(f"   ID версии: {dataset.id}")
     print(f"   Проект: {dataset.project}")
 
 except Exception as e:
-    print(f"\n❌ Ошибка загрузки датасета: {e}")
-    print("\n💡 Убедись, что датасет существует:")
+    print(f"\n Ошибка загрузки датасета: {e}")
+    print("\n Убедись, что датасет существует:")
     print("   1. Запусти: python 3_dataset_creation.py")
     print("   2. Или через CLI:")
     print(
@@ -116,7 +124,7 @@ print(f"   Файлы: {files}")
 csv_file = [f for f in files if f.endswith(".csv")][0]
 df = pd.read_csv(os.path.join(dataset_path, csv_file))
 
-print("\n✅ Датасет успешно загружен и готов к использованию!")
+print("\n Датасет успешно загружен и готов к использованию!")
 print("=" * 60)
 
 #####################
@@ -482,6 +490,6 @@ os.makedirs(os.path.dirname(model_path), exist_ok=True)
 joblib.dump(final_model, model_path, compress=True)
 
 task.close()
-print(f"✅ Обучение завершено! Финальная точность: {final_accuracy:.4f}")
+print(f" Обучение завершено! Финальная точность: {final_accuracy:.4f}")
 print("Метрики и графики доступны в веб-интерфейсе ClearML")
 print(f"Использован датасет: {dataset.name} (ID версии: {dataset.id})")
